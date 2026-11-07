@@ -1,0 +1,13 @@
+import {configured,loginGoogle,completeGoogleRedirect,logout,onAuth,getMyRole} from './firebase.js';
+const $=id=>document.getElementById(id);
+$('google-sign-in').addEventListener('click',async()=>{try{$('login-message').textContent='Opening Google…';await loginGoogle()}catch(e){$('login-message').textContent=e.message}});
+completeGoogleRedirect().catch(e=>$('login-message').textContent=e.message);
+$('sign-out').addEventListener('click',()=>logout());
+function showLogin(message=''){$('admin-login').hidden=false;$('admin-panel').hidden=true;$('sign-out').hidden=true;$('login-message').textContent=message}
+function showPanel(role){$('admin-login').hidden=true;$('admin-panel').hidden=false;$('sign-out').hidden=false;$('role-nav').innerHTML=role==='super_admin'?'<a href="admin.html">Website Settings</a> · <a href="orders.html">Orders</a> · <a href="users.html">Users</a> · <a href="email-settings.html">Email</a>':''}
+import {getOrders,setOrderStatus} from './firebase.js';
+import {money,escapeHTML as e} from './data.js';
+async function refresh(){ $('order-status').textContent='Loading orders…';try{const orders=await getOrders();$('admin-orders').innerHTML=orders.length?orders.map(o=>`<article class="order-item"><div><strong>${e(o.orderNumber||o.id)}</strong> · ${money(o.total)}<br><small>${e(o.customer?.name||'')} · ${e(o.customer?.email||'')} · ${e(o.customer?.phone||'')}</small><p>${(o.items||[]).map(i=>`${e(i.name)} × ${Number(i.quantity)||0}`).join(' · ')}</p><p>${e(o.customer?.notes||'')}</p></div><label>Status<select data-order="${e(o.id)}">${['Pending','Confirmed','Preparing','Ready','Completed','Cancelled'].map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></label></article>`).join(''):'<p>No orders yet.</p>';$('order-status').textContent=`${orders.length} order(s)`}catch(e){$('order-status').textContent=e.message}}
+$('refresh-orders').addEventListener('click',refresh);
+document.addEventListener('change',async ev=>{if(!ev.target.dataset.order)return;const select=ev.target;select.disabled=true;try{await setOrderStatus(select.dataset.order,select.value);$('order-status').textContent='Order status saved.'}catch(e){$('order-status').textContent=e.message;await refresh()}finally{select.disabled=false}});
+if(!configured)showLogin('Firebase not configured.');else onAuth(async user=>{if(!user)return showLogin();try{const role=await getMyRole();if(['super_admin','order_manager'].includes(role)){showPanel(role);await refresh()}else showLogin('No order access. Your Firebase UID: '+user.uid)}catch(e){showLogin('Permission check failed: '+e.message)}});

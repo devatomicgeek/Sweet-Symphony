@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+ match /b/{bucket}/o {
+  function adminUser(){return request.auth != null && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.enabled == true;}
+  match /{allPaths=**} {
+   allow read: if true;
+   allow write: if adminUser() && request.resource.size < 4 * 1024 * 1024 && request.resource.contentType.matches('image/(jpeg|png|webp)');
+  }
+ }
+}

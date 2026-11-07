@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null; }
+  function roleIs(role) { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.enabled == true && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == role; }
+  function superAdmin() { return roleIs('super_admin'); }
+  function websiteManager() { return superAdmin() || roleIs('website_manager'); }
+  function orderManager() { return superAdmin() || roleIs('order_manager'); }
+  function validAdmin() { return request.resource.data.keys().hasOnly(['email','role','enabled']) && request.resource.data.keys().hasAll(['email','role','enabled']) && request.resource.data.email is string && request.resource.data.email.size() <= 254 && request.resource.data.enabled is bool && request.resource.data.role in ['super_admin','website_manager','order_manager']; }
+  match /admins/{uid} {
+   allow get: if (signedIn() && request.auth.uid == uid) || superAdmin();
+   allow list: if superAdmin();
+   allow create, update: if superAdmin() && validAdmin() && (uid != request.auth.uid || (request.resource.data.role == 'super_admin' && request.resource.data.enabled == true));
+   allow delete: if false;
+  }
+  match /products/{id} {
+   allow get, list: if websiteManager() || resource.data.published == true;
+   allow create, update, delete: if websiteManager();
+  }
+  match /settings/{id} {
+   allow read: if true;
+   allow write: if websiteManager();
+  }
+  match /privateSettings/{id} {
+   allow read, write: if superAdmin() && id == 'emailNotifications' && (request.method == 'get' || request.method == 'list' || request.resource.data.keys().hasOnly(['enabled','recipients','provider','events']));
+  }
+  function validCustomer(c) {
+   return c is map && c.keys().hasOnly(['name','email','phone','notes']) && c.keys().hasAll(['name','email','phone','notes'])
+    && c.name is string && c.name.size() >= 2 && c.name.size() <= 120
+    && c.email is string && c.email.size() >= 5 && c.email.size() <= 254 && c.email.matches('^[^@ ]+@[^@ ]+\.[^@ ]+$')
+    && c.phone is string && c.phone.size() >= 7 && c.phone.size() <= 30
+    && c.notes is string && c.notes.size() <= 1000;
+  }
+  function productPath(id) { return /databases/$(database)/documents/products/$(id); }
+  function validLine(i) {
+   return i is map && i.keys().hasOnly(['id','name','price','quantity']) && i.keys().hasAll(['id','name','price','quantity'])
+    && i.id is string && i.id.size() > 0 && i.id.size() <= 120
+    && i.quantity is int && i.quantity >= 1 && i.quantity <= 99
+    && exists(productPath(i.id)) && get(productPath(i.id)).data.published == true
+    && i.name == get(productPath(i.id)).data.name && i.price == get(productPath(i.id)).data.price
+    && i.price is number && i.price >= 0 && i.price <= 100000;
+  }
+  // Limit to five distinct products to keep Firestore cross-document rule reads within limits.
+  function validLines(lines) {
+   return lines is list && lines.size() >= 1 && lines.size() <= 5
+    && validLine(lines[0])
+    && (lines.size() < 2 || validLine(lines[1]))
+    && (lines.size() < 3 || validLine(lines[2]))
+    && (lines.size() < 4 || validLine(lines[3]))
+    && (lines.size() < 5 || validLine(lines[4]));
+  }
+  function computedTotal(lines) {
+   return lines[0].price * lines[0].quantity
+    + (lines.size() > 1 ? lines[1].price * lines[1].quantity : 0)
+    + (lines.size() > 2 ? lines[2].price * lines[2].quantity : 0)
+    + (lines.size() > 3 ? lines[3].price * lines[3].quantity : 0)
+    + (lines.size() > 4 ? lines[4].price * lines[4].quantity : 0);
+  }
+  function validOrder(id) {
+   let d = request.resource.data;
+   return signedIn() && d.keys().hasOnly(['customer','items','total','status','orderNumber','ownerUid','consent','createdAt'])
+    && d.keys().hasAll(['customer','items','total','status','orderNumber','ownerUid','consent','createdAt'])
+    && d.ownerUid == request.auth.uid && d.consent == true && d.status == 'Pending'
+    && d.orderNumber == id
+    && d.createdAt == request.time && validCustomer(d.customer)
+    && validLines(d.items) && d.total == computedTotal(d.items) && d.total <= 500000;
+  }
+  match /orders/{id} {
+   allow get, list: if orderManager();
+   allow create: if validOrder(id);
+   allow update: if orderManager() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['Pending','Confirmed','Preparing','Ready','Completed','Cancelled'];
+   allow delete: if false;
+  }
+  match /counters/{id} { allow read, write: if false; }
+  match /orderCounters/{id} { allow read, write: if false; }
+ }
+}
