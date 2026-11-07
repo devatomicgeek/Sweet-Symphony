@@ -1,21 +1,11 @@
-// Sweet Symphony Firebase Configuration
-
-// Version 0.8
-
+// Sweet Symphony v0.9.2 - Firebase web configuration
+// Public client configuration; never add service-account credentials here.
 export const firebaseConfig = {
-
-  apiKey: "AIzaSyCqSjmuTaBp609JY9wr4-bZ7ozq_rjHOyk",
-
-  authDomain: "sweet-symphony-9db3d.firebaseapp.com",
-
-  projectId: "sweet-symphony-9db3d",
-
-  storageBucket: "sweet-symphony-9db3d.firebasestorage.app",
-
-  messagingSenderId: "715382321521",
-
-  appId: "1:715382321521:web:e8d2496a6f326652b286d0",
-
-  measurementId: "G-4L9LP2BFE0"
-
+  apiKey: "AIzaSyByHoQWD88jky05lZzdDEW_MeiQvUrjq7w",
+  authDomain: "sweet-symphony-faa54.firebaseapp.com",
+  projectId: "sweet-symphony-faa54",
+  storageBucket: "sweet-symphony-faa54.firebasestorage.app",
+  messagingSenderId: "739175471209",
+  appId: "1:739175471209:web:ca5363563a6f3d49a9eaf8",
+  measurementId: "G-7GD2ZXQ49Q"
 };
