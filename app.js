@@ -20,4 +20,20 @@ async function sendOrder(form){const button=$('submit-order'),err=$('checkout-er
 window.openCart=openCart;
 document.addEventListener('click',ev=>{let b=ev.target.closest('[data-view],[data-add],[data-close],[data-checkout],[data-cart],[data-remove],[data-qty],[data-step]');if(!b)return;if(b.dataset.view)openProduct(b.dataset.view);else if(b.dataset.add){const n=Number($('quantity')?.value||1);addToCart(b.dataset.add,n)}else if('close'in b.dataset)closeModal();else if('checkout'in b.dataset)checkout();else if('cart'in b.dataset)openCart();else if(b.dataset.remove){delete cart[b.dataset.remove];save();openCart()}else if(b.dataset.qty){const id=b.dataset.qty;cart[id]=Math.max(0,(cart[id]||0)+Number(b.dataset.delta));if(!cart[id])delete cart[id];save();openCart()}else if(b.dataset.step){$('quantity').value=Math.max(1,Math.min(99,Number($('quantity').value)+Number(b.dataset.step)))}});
 document.addEventListener('submit',ev=>{if(ev.target.id==='checkout-form'){ev.preventDefault();sendOrder(ev.target)}});
-document.addEventListener('DOMContentLoaded',async()=>{render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});$('featured-img')?.addEventListener('error',ev=>ev.target.src=placeholder);let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){try{const [catalog,home]=await Promise.all([getCatalog(),getHome()]);if(catalog)products=catalog;if(home?.heroImage&&$('hero-img'))$('hero-img').src=displayImage(home.heroImageLink||home.heroImage,placeholder);render()}catch(err){console.warn('Catalog unavailable:',err)}}if($('hero-img')&&!$('hero-img').src)$('hero-img').src=placeholder});
+document.addEventListener('DOMContentLoaded',async()=>{render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});$('featured-img')?.addEventListener('error',ev=>ev.target.src=placeholder);let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){
+  // Load homepage settings independently of the product catalog. A catalog error
+  // must never prevent the hero image from appearing.
+  const [homeResult,catalogResult]=await Promise.allSettled([getHome(),getCatalog()]);
+  if(homeResult.status==='fulfilled'){
+    const home=homeResult.value;
+    const hero=$('hero-img');
+    if(hero && (home?.heroImageLink||home?.heroImage)){
+      hero.onerror=()=>{hero.onerror=null;hero.src=placeholder;};
+      hero.src=displayImage(home.heroImageLink||home.heroImage,placeholder);
+    }
+  }else console.warn('Homepage settings unavailable:',homeResult.reason);
+  if(catalogResult.status==='fulfilled'){
+    if(catalogResult.value)products=catalogResult.value;
+    render();
+  }else console.warn('Catalog unavailable:',catalogResult.reason);
+}if($('hero-img')&&!$('hero-img').src)$('hero-img').src=placeholder});
