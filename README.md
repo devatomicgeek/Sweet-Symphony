@@ -8,3 +8,6 @@ Read `SETUP-v0.9.2.md` before publishing. Checkout requires Firebase Anonymous A
 
 
 Latest release: v0.9.4. See RELEASE-v0.9.4.md for deployment and diagnostics.
+
+
+v0.9.5: Published cookies are loaded from Firestore in real time. The shop displays an error when the catalog request fails instead of silently appearing empty. Homepage hero image listener from v0.9.4 is unchanged.

@@ -1,16 +1,27 @@
-// Sweet Symphony v0.9.4 - storefront and homepage image reliability
-import {displayImage} from './images.js?v=0.9.4';
-import {defaults,money,escapeHTML as e,placeholder} from './data.js?v=0.9.4';
-import {configured,getCatalog,getHome,submitOrder} from './firebase.js?v=0.9.4';
-let products=defaults,cart=JSON.parse(localStorage.getItem('ssCartV07')||'{}'),featureIndex=0;
+// Sweet Symphony v0.9.5 - storefront and homepage image reliability
+import {displayImage} from './images.js?v=0.9.5';
+import {defaults,money,escapeHTML as e,placeholder} from './data.js?v=0.9.5';
+import {configured,watchCatalog,submitOrder} from './firebase.js?v=0.9.5';
+let products=[],cart=JSON.parse(localStorage.getItem('ssCartV07')||'{}'),featureIndex=0;
 const $=id=>document.getElementById(id),img=p=>displayImage(p.imageLink||p.image,placeholder);
 function save(){localStorage.setItem('ssCartV07',JSON.stringify(cart));document.querySelectorAll('.cart-count').forEach(n=>n.textContent=Object.values(cart).reduce((a,b)=>a+b,0))}
 function total(){return Object.entries(cart).reduce((s,[id,q])=>s+(products.find(p=>p.id===id)?.price||0)*q,0)}
 function items(){return Object.entries(cart).map(([id,quantity])=>({product:products.find(p=>p.id===id),quantity})).filter(x=>x.product&&x.quantity>0)}
 function card(p){return `<article class="product-card"><img src="${e(img(p))}" alt="${e(p.name)}" loading="lazy" onerror="this.src='${placeholder}'"><div class="details"><div class="row"><h3>${e(p.name)}</h3><span class="small-price">${money(p.price)}</span></div><p>${e(p.desc)}</p><button class="btn" data-view="${e(p.id)}">VIEW COOKIE</button></div></article>`}
-function render(){document.querySelectorAll('[data-products]').forEach(el=>el.innerHTML=products.filter(p=>p.published!==false).map(card).join(''));if($('featured-name')){let featured=products.filter(p=>p.featured&&p.published!==false);window.featured=featured.length?featured:products.filter(p=>p.published!==false);featureIndex=Math.min(featureIndex,window.featured.length-1);showFeature()}save()}
-function showFeature(){const p=window.featured?.[featureIndex];if(!p)return;$('featured-name').textContent=p.name.toUpperCase();$('featured-desc').textContent=p.desc;$('featured-price').textContent=money(p.price);$('featured-img').src=img(p);$('featured-img').onerror=()=>{$('featured-img').src=placeholder};$('featured-add').onclick=()=>addToCart(p.id);document.querySelector('.feature .eyebrow').textContent='SIGNATURE COOKIE / '+String(featureIndex+1).padStart(2,'0')}
-window.shiftFeature=n=>{featureIndex=(featureIndex+n+window.featured.length)%window.featured.length;showFeature()};
+function render(){
+ const visible=products.filter(p=>p.published===true);
+ document.querySelectorAll('[data-products]').forEach(el=>el.innerHTML=visible.length?visible.map(card).join(''):'<p class="catalog-notice">No cookies are currently available.</p>');
+ if($('featured-name')){
+   const featured=visible.filter(p=>p.featured===true);
+   window.featured=featured.length?featured:visible;
+   featureIndex=Math.max(0,Math.min(featureIndex,window.featured.length-1));
+   if(window.featured.length)showFeature();
+   else { $('featured-name').textContent='COOKIES COMING SOON';$('featured-desc').textContent='Check back for freshly baked cookies.';$('featured-price').textContent='';$('featured-img').src=placeholder;$('featured-add').disabled=true; }
+ }
+ save();
+}
+function showFeature(){const p=window.featured?.[featureIndex];if(!p)return;$('featured-name').textContent=p.name.toUpperCase();$('featured-desc').textContent=p.desc;$('featured-price').textContent=money(p.price);$('featured-img').src=img(p);$('featured-img').onerror=()=>{$('featured-img').onerror=null;$('featured-img').src=placeholder};$('featured-add').disabled=false;$('featured-add').onclick=()=>addToCart(p.id);document.querySelector('.feature .eyebrow').textContent='SIGNATURE COOKIE / '+String(featureIndex+1).padStart(2,'0')}
+window.shiftFeature=n=>{if(!window.featured?.length)return;featureIndex=(featureIndex+n+window.featured.length)%window.featured.length;showFeature()};
 function open(html){$('modal-content').innerHTML=html;$('overlay').classList.add('open');document.body.style.overflow='hidden';$('overlay').querySelector('.close')?.focus()}
 window.closeModal=()=>{$('overlay').classList.remove('open');document.body.style.overflow=''};
 function openProduct(id){const p=products.find(x=>x.id===id);if(!p)return;open(`<div class="dialog-grid"><img src="${e(img(p))}" alt="${e(p.name)}" onerror="this.src='${placeholder}'"><div class="product-info"><div class="eyebrow">SWEET SYMPHONY / COOKIE</div><h2>${e(p.name)}</h2><p>${e(p.desc)}</p><div class="price">${money(p.price)}</div><label for="quantity">Quantity</label><div class="qty-control"><button type="button" data-step="-1">−</button><input id="quantity" type="number" min="1" max="99" value="1"><button type="button" data-step="1">+</button></div><button class="btn" data-add="${e(id)}">ADD TO CART</button></div></div>`)}
@@ -21,15 +32,11 @@ async function sendOrder(form){const button=$('submit-order'),err=$('checkout-er
 window.openCart=openCart;
 document.addEventListener('click',ev=>{let b=ev.target.closest('[data-view],[data-add],[data-close],[data-checkout],[data-cart],[data-remove],[data-qty],[data-step]');if(!b)return;if(b.dataset.view)openProduct(b.dataset.view);else if(b.dataset.add){const n=Number($('quantity')?.value||1);addToCart(b.dataset.add,n)}else if('close'in b.dataset)closeModal();else if('checkout'in b.dataset)checkout();else if('cart'in b.dataset)openCart();else if(b.dataset.remove){delete cart[b.dataset.remove];save();openCart()}else if(b.dataset.qty){const id=b.dataset.qty;cart[id]=Math.max(0,(cart[id]||0)+Number(b.dataset.delta));if(!cart[id])delete cart[id];save();openCart()}else if(b.dataset.step){$('quantity').value=Math.max(1,Math.min(99,Number($('quantity').value)+Number(b.dataset.step)))}});
 document.addEventListener('submit',ev=>{if(ev.target.id==='checkout-form'){ev.preventDefault();sendOrder(ev.target)}});
-document.addEventListener('DOMContentLoaded',async()=>{render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});$('featured-img')?.addEventListener('error',ev=>ev.target.src=placeholder);let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){
-  // Load homepage settings independently of the product catalog. A catalog error
-  // must never prevent the hero image from appearing.
-  const [homeResult,catalogResult]=await Promise.allSettled([getHome(),getCatalog()]);
-  // Homepage hero is loaded by homepage-image.js independently of this storefront.
-  // Preserve catalog functionality even if the homepage settings read fails.
-  if(homeResult.status==='rejected') console.warn('[Sweet Symphony] Homepage settings read failed:',homeResult.reason);
-  if(catalogResult.status==='fulfilled'){
-    if(catalogResult.value)products=catalogResult.value;
-    render();
-  }else console.warn('Catalog unavailable:',catalogResult.reason);
-}if($('hero-img')&&!$('hero-img').src)$('hero-img').src=placeholder});
+document.addEventListener('DOMContentLoaded',async()=>{render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){
+  const status=document.getElementById('catalog-status');
+  watchCatalog(
+    catalog=>{products=catalog;render();if(status){status.textContent='';status.hidden=true;}console.info('[Sweet Symphony] Published cookies loaded:',catalog.length);},
+    error=>{console.error('[Sweet Symphony] Cannot load published products:',error);if(status){status.hidden=false;status.textContent='Unable to load cookies. Please refresh or contact the store. ('+(error.code||error.message||'unknown error')+')';}else if($('featured-desc'))$('featured-desc').textContent='Unable to load the latest cookies. Please try refreshing.';}
+  );
+}else{console.error('[Sweet Symphony] Firebase configuration missing.');const status=$('catalog-status');if(status){status.hidden=false;status.textContent='Cookie catalog is unavailable: Firebase is not configured.';}}
+});

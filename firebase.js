@@ -165,3 +165,17 @@ export async function saveEmailSettings(data) {
   if (!(await hasRole(['super_admin']))) throw Error('Super admin access required.');
   await fs.setDoc(fs.doc(db,'privateSettings','emailNotifications'),data);
 }
+
+// v0.9.5: realtime published cookie catalog, independent from homepage settings.
+export function watchCatalog(onProducts,onError) {
+  if (!configured || !db || !fs) {
+    onError(new Error('Firebase catalog is not configured.'));
+    return () => {};
+  }
+  const q = fs.query(fs.collection(db,'products'),fs.where('published','==',true));
+  return fs.onSnapshot(q, snapshot => {
+    const products = snapshot.docs.map(d => ({...d.data(),id:d.id}));
+    products.sort((a,b) => (Number(a.sort)||0)-(Number(b.sort)||0) || String(a.name||'').localeCompare(String(b.name||'')));
+    onProducts(products);
+  }, onError);
+}
