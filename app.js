@@ -1,6 +1,7 @@
-import {displayImage} from './images.js';
-import {defaults,money,escapeHTML as e,placeholder} from './data.js';
-import {configured,getCatalog,getHome,submitOrder} from './firebase.js';
+// Sweet Symphony v0.9.3 - storefront and homepage image reliability
+import {displayImage} from './images.js?v=0.9.3';
+import {defaults,money,escapeHTML as e,placeholder} from './data.js?v=0.9.3';
+import {configured,getCatalog,getHome,submitOrder} from './firebase.js?v=0.9.3';
 let products=defaults,cart=JSON.parse(localStorage.getItem('ssCartV07')||'{}'),featureIndex=0;
 const $=id=>document.getElementById(id),img=p=>displayImage(p.imageLink||p.image,placeholder);
 function save(){localStorage.setItem('ssCartV07',JSON.stringify(cart));document.querySelectorAll('.cart-count').forEach(n=>n.textContent=Object.values(cart).reduce((a,b)=>a+b,0))}
@@ -27,11 +28,18 @@ document.addEventListener('DOMContentLoaded',async()=>{render();document.querySe
   if(homeResult.status==='fulfilled'){
     const home=homeResult.value;
     const hero=$('hero-img');
-    if(hero && (home?.heroImageLink||home?.heroImage)){
-      hero.onerror=()=>{hero.onerror=null;hero.src=placeholder;};
-      hero.src=displayImage(home.heroImageLink||home.heroImage,placeholder);
+    if(hero && (home?.heroImage||home?.heroImageLink)){
+      // Prefer the saved display URL. Keep the previous image when Firestore
+      // returns an unusable link, instead of replacing it with a placeholder.
+      const next=displayImage(home.heroImage||home.heroImageLink,'');
+      if(next && next!==hero.src){
+        const probe=new Image();
+        probe.onload=()=>{hero.src=next;hero.dataset.imageStatus='firestore';};
+        probe.onerror=()=>console.warn('Homepage image URL could not load:',next);
+        probe.src=next;
+      }
     }
-  }else console.warn('Homepage settings unavailable:',homeResult.reason);
+  }else console.warn('Homepage settings unavailable; using the public hero fallback:',homeResult.reason);
   if(catalogResult.status==='fulfilled'){
     if(catalogResult.value)products=catalogResult.value;
     render();
