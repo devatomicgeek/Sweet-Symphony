@@ -128,6 +128,21 @@ export async function setOrderStatus(id, status) {
   await fs.updateDoc(fs.doc(db, 'orders', id), { status });
 }
 // Browser-only checkout: Firebase anonymous identity, Firestore rules recalculate totals.
+// Reference date is based on Philippine time (Asia/Manila), not the visitor's device timezone.
+function orderDatePH() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const part = type => parts.find(p => p.type === type)?.value;
+  return `${part('year')}${part('month')}${part('day')}`;
+}
+function makeOrderReference() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous 0/O and 1/I.
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return `SS-${orderDatePH()}-${Array.from(bytes, n => alphabet[n % alphabet.length]).join('')}`;
+}
+
 export async function ensureCheckoutIdentity() {
   if (!configured) throw Error('Firebase is not configured.');
   if (auth.currentUser) return auth.currentUser;
@@ -136,7 +151,6 @@ export async function ensureCheckoutIdentity() {
 }
 export async function submitOrder(payload) {
   const user = await ensureCheckoutIdentity();
-  const orderRef = fs.doc(fs.collection(db, 'orders'));
   const lines = payload.items.map(i => ({id:i.id, quantity:i.quantity}));
   if (lines.length < 1 || lines.length > 5 || new Set(lines.map(i=>i.id)).size !== lines.length) throw Error('Checkout supports up to five different cookies per order.');
   const products = await Promise.all(lines.map(async line => {
@@ -148,11 +162,22 @@ export async function submitOrder(payload) {
     id: line.id, name: products[index].name, price: products[index].price, quantity: line.quantity
   }));
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const orderNumber = orderRef.id;
-  await fs.setDoc(orderRef, {
-    customer: payload.customer, items, total, status:'Pending', orderNumber,
-    ownerUid:user.uid, consent:true, createdAt:fs.serverTimestamp()
-  });
+  // The Firestore rules allow customer CREATE but not UPDATE, so an existing
+  // document cannot be overwritten by a second order using the same reference.
+  // A rare collision will fail safely rather than replacing a previous order.
+  const orderNumber = makeOrderReference();
+  const orderRef = fs.doc(db, 'orders', orderNumber);
+  try {
+    await fs.setDoc(orderRef, {
+      customer: payload.customer, items, total, status:'Pending', orderNumber,
+      ownerUid:user.uid, consent:true, createdAt:fs.serverTimestamp()
+    });
+  } catch (error) {
+    if (error?.code === 'permission-denied') {
+      throw new Error('Order could not be saved. Please retry. If the issue continues, contact Sweet Symphony.');
+    }
+    throw error;
+  }
   return {orderNumber, id:orderRef.id, total};
 }
 // Only super admins can change notification configuration.
