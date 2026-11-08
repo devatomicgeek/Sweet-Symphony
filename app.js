@@ -1,7 +1,7 @@
-// Sweet Symphony v0.9.5 - storefront and homepage image reliability
-import {displayImage} from './images.js?v=0.9.5';
-import {defaults,money,escapeHTML as e,placeholder} from './data.js?v=0.9.5';
-import {configured,watchCatalog,submitOrder} from './firebase.js?v=0.9.5';
+// Sweet Symphony v0.9.6 - storefront and homepage image reliability
+import {displayImage} from './images.js?v=0.9.6';
+import {defaults,money,escapeHTML as e,placeholder} from './data.js?v=0.9.6';
+import {configured,watchCatalog,submitOrder} from './firebase.js?v=0.9.6';
 let products=[],cart=JSON.parse(localStorage.getItem('ssCartV07')||'{}'),featureIndex=0;
 const $=id=>document.getElementById(id),img=p=>displayImage(p.imageLink||p.image,placeholder);
 function save(){localStorage.setItem('ssCartV07',JSON.stringify(cart));document.querySelectorAll('.cart-count').forEach(n=>n.textContent=Object.values(cart).reduce((a,b)=>a+b,0))}
@@ -32,11 +32,13 @@ async function sendOrder(form){const button=$('submit-order'),err=$('checkout-er
 window.openCart=openCart;
 document.addEventListener('click',ev=>{let b=ev.target.closest('[data-view],[data-add],[data-close],[data-checkout],[data-cart],[data-remove],[data-qty],[data-step]');if(!b)return;if(b.dataset.view)openProduct(b.dataset.view);else if(b.dataset.add){const n=Number($('quantity')?.value||1);addToCart(b.dataset.add,n)}else if('close'in b.dataset)closeModal();else if('checkout'in b.dataset)checkout();else if('cart'in b.dataset)openCart();else if(b.dataset.remove){delete cart[b.dataset.remove];save();openCart()}else if(b.dataset.qty){const id=b.dataset.qty;cart[id]=Math.max(0,(cart[id]||0)+Number(b.dataset.delta));if(!cart[id])delete cart[id];save();openCart()}else if(b.dataset.step){$('quantity').value=Math.max(1,Math.min(99,Number($('quantity').value)+Number(b.dataset.step)))}});
 document.addEventListener('submit',ev=>{if(ev.target.id==='checkout-form'){ev.preventDefault();sendOrder(ev.target)}});
-document.addEventListener('DOMContentLoaded',async()=>{render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){
+async function initializeStorefront(){console.info('[Sweet Symphony v0.9.6] Storefront initializing; readyState:',document.readyState);render();document.querySelector('.mobile-toggle')?.addEventListener('click',()=>{let nav=document.querySelector('.nav-links');nav.classList.toggle('show')});$('overlay')?.addEventListener('click',ev=>{if(ev.target.id==='overlay')closeModal()});document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeModal()});let contact=$('contact-form');contact?.addEventListener('submit',ev=>{ev.preventDefault();if(!contact.reportValidity())return;const d=new FormData(contact);location.href=`mailto:hello@sweetsymphonies.net?subject=${encodeURIComponent('Sweet Symphony enquiry from '+d.get('name'))}&body=${encodeURIComponent(d.get('message')+'\nFrom: '+d.get('name')+'\nEmail: '+d.get('email'))}`});if(configured){
   const status=document.getElementById('catalog-status');
+  console.info('[Sweet Symphony v0.9.6] Connecting published cookie listener');
   watchCatalog(
     catalog=>{products=catalog;render();if(status){status.textContent='';status.hidden=true;}console.info('[Sweet Symphony] Published cookies loaded:',catalog.length);},
     error=>{console.error('[Sweet Symphony] Cannot load published products:',error);if(status){status.hidden=false;status.textContent='Unable to load cookies. Please refresh or contact the store. ('+(error.code||error.message||'unknown error')+')';}else if($('featured-desc'))$('featured-desc').textContent='Unable to load the latest cookies. Please try refreshing.';}
   );
 }else{console.error('[Sweet Symphony] Firebase configuration missing.');const status=$('catalog-status');if(status){status.hidden=false;status.textContent='Cookie catalog is unavailable: Firebase is not configured.';}}
-});
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initializeStorefront,{once:true});}else{initializeStorefront();}
