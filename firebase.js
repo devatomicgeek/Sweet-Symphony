@@ -124,6 +124,10 @@ export async function getOrders() {
   const snapshot = await fs.getDocs(query);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+export async function setOrderArchived(id, archived) {
+  if (!configured) throw new Error('Firebase not configured.');
+  await fs.updateDoc(fs.doc(db, 'orders', id), { archived });
+}
 export async function setOrderStatus(id, status) {
   await fs.updateDoc(fs.doc(db, 'orders', id), { status });
 }
@@ -203,4 +207,15 @@ export function watchCatalog(onProducts,onError) {
     products.sort((a,b) => (Number(a.sort)||0)-(Number(b.sort)||0) || String(a.name||'').localeCompare(String(b.name||'')));
     onProducts(products);
   }, onError);
+}
+
+// Public notification switches only; no private recipient addresses exposed to customers.
+export async function getPublicEmailPreferences() {
+  if (!configured) return {enabled:false,events:[]};
+  const snap=await fs.getDoc(fs.doc(db,'settings','emailNotificationsPublic'));
+  return snap.exists()?snap.data():{enabled:false,events:[]};
+}
+export async function savePublicEmailPreferences(data) {
+  if (!(await hasRole(['super_admin']))) throw Error('Super admin access required.');
+  await fs.setDoc(fs.doc(db,'settings','emailNotificationsPublic'),{enabled:!!data.enabled,events:data.events||[],provider:'emailjs'});
 }

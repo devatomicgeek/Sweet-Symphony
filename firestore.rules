@@ -68,7 +68,7 @@ service cloud.firestore {
   match /orders/{id} {
    allow get, list: if orderManager();
    allow create: if validOrder(id);
-   allow update: if orderManager() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['Pending','Confirmed','Preparing','Ready','Completed','Cancelled'];
+   allow update: if orderManager() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','archived']) && request.resource.data.status in ['Pending','Confirmed','Preparing','Ready','Completed','Cancelled'] && (!('archived' in request.resource.data) || request.resource.data.archived is bool);
    allow delete: if false;
   }
   match /counters/{id} { allow read, write: if false; }
